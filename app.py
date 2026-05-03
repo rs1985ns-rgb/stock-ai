@@ -1,31 +1,59 @@
 import streamlit as st
+import yfinance as yf
 import pandas as pd
-import json
-from urllib.request import urlopen
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="Market Signals", layout="wide")
-st.title("📈 AI Market Signal (Lite Version)")
+st.set_page_config(page_title="AI Market Signal", layout="wide")
+st.title("📈 AI Trading Signal (Bulletproof Version)")
 
-# Simple Symbol Input
-symbol = st.text_input("Symbol (e.g., BTCUSDT, ETHUSDT):", "BTCUSDT")
+# Input Box
+symbol = st.text_input("Stock ya Crypto symbol (e.g. BTC-USD, RELIANCE.NS, TSLA):", "BTC-USD")
 
-# Fetching Data using a direct public API (Binance - no extra library needed)
+# RSI Calculation Formula (No Library Needed)
+def calculate_rsi(data, window=14):
+    delta = data['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    return 100 - (100 / (1 + rs))
+
 try:
-    url = f"https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}"
-    response = urlopen(url)
-    data = json.loads(response.read())
+    # Data Fetching
+    data = yf.download(symbol, period="1mo", interval="1h")
+    
+    if not data.empty:
+        # RSI nikalna
+        data['RSI'] = calculate_rsi(data)
+        last_price = float(data['Close'].iloc[-1])
+        last_rsi = float(data['RSI'].iloc[-1])
 
-    price = float(data['Price'])
-    change = float(data['priceChangePercent'])
+        # Metrics Display
+        col1, col2 = st.columns(2)
+        col1.metric("Current Price", f"${last_price:,.2f}")
+        col2.metric("RSI (Momentum)", f"{last_rsi:.2f}")
 
-    st.metric("Price", f"${price:,.2f}", f"{change}%")
+        # Buy/Sell Logic
+        if last_rsi < 30:
+            st.success("🤖 AI SIGNAL: 🚀 BUY (Oversold Zone)")
+        elif last_rsi > 70:
+            st.error("🤖 AI SIGNAL: 📉 SELL (Overbought Zone)")
+        else:
+            st.info("🤖 AI SIGNAL: ⚖️ NEUTRAL (Wait)")
 
-    if change < -3:
-        st.success("🤖 SIGNAL: BUY 🚀 (Market Dip Detected)")
-    elif change > 3:
-        st.error("🤖 SIGNAL: SELL 📉 (High Profit Booking Zone)")
+        # Candlestick Chart
+        fig = go.Figure(data=[go.Candlestick(
+            x=data.index,
+            open=data['Open'],
+            high=data['High'],
+            low=data['Low'],
+            close=data['Close'],
+            name="Market Data"
+        )])
+        fig.update_layout(title=f"{symbol} Live Chart", template="plotly_dark")
+        st.plotly_chart(fig, use_container_width=True)
+        
     else:
-        st.info("🤖 SIGNAL: NEUTRAL ⚖️ (Wait for move)")
+        st.warning("Data nahi mila. Kripya symbol sahi se check karein (Example: BTC-USD).")
 
 except Exception as e:
-    st.error("Symbol sahi daalein (Sirf Crypto like BTCUSDT, ETHUSDT kaam karega is lite version mein)")
+    st.error(f"Kuch galat hua: {e}")
