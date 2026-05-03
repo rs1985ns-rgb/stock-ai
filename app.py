@@ -15,7 +15,7 @@ try:
     response = urlopen(url)
     data = json.loads(response.read())
 
-    price = float(data['lastPrice'])
+    price = float(data['Price'])
     change = float(data['priceChangePercent'])
 
     st.metric("Price", f"${price:,.2f}", f"{change}%")
